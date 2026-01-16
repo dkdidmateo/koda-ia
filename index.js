@@ -1,142 +1,101 @@
 /**
- * index.js - Servidor (Backend) v3.1.4
- * KODA IA - Optimizado para RENDER.COM con correo dkdidmateo@gmail.com
+ * index.js - Frontend v3.1.1
+ * KODA IA - Con Sugerencias Restauradas
  */
 
-const express = require("express");
-const axios = require("axios");
-const path = require("path");
-const fs = require("fs");
-
-const app = express();
-const PORT = process.env.PORT || 3000;
-
-// CONFIGURACIÓN DE GOOGLE
-const GOOGLE_API_KEY = "AIzaSyAsEvRJh4RX558n4-iFQuPlyVY4t-PAu9o";
-const GOOGLE_CX = "213dcf6eb1f44462d"; 
-
-const MEMORIA_PATH = path.join(__dirname, "memoria.json");
-const PERFIL_PATH = path.join(__dirname, "perfil.json");
-const FEEDBACK_PATH = path.join(__dirname, "feedback.json");
-
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
-
-let historial = [];
-let perfil = { nombre: null, ciudad: null };
-let modoFeedback = {};
-
-// Carga inicial de datos
-try {
-    if (fs.existsSync(MEMORIA_PATH)) historial = JSON.parse(fs.readFileSync(MEMORIA_PATH, "utf-8"));
-    if (fs.existsSync(PERFIL_PATH)) perfil = JSON.parse(fs.readFileSync(PERFIL_PATH, "utf-8"));
-} catch (e) { console.log("Iniciando con datos vacíos"); }
-
-function guardar() {
-    try {
-        fs.writeFileSync(MEMORIA_PATH, JSON.stringify(historial, null, 2));
-        fs.writeFileSync(PERFIL_PATH, JSON.stringify(perfil, null, 2));
-    } catch (e) { console.log("Error al guardar"); }
-}
-
-const web = axios.create({ timeout: 7000 });
-
-async function buscarGoogle(q) {
-    try {
-        const res = await axios.get("https://www.googleapis.com/customsearch/v1", {
-            params: { key: GOOGLE_API_KEY, cx: GOOGLE_CX, q: q, hl: "es", num: 3 }
-        });
-        if (!res.data.items) return null;
-        let r = `🌐 **RESULTADOS DE GOOGLE:**\n──────────────────────────\n\n`;
-        res.data.items.forEach((item, i) => {
-            r += `${i+1}. **${item.title}**\n${item.snippet}\n\n`;
-        });
-        return r + `──────────────────────────`;
-    } catch (e) { return null; }
-}
-
-async function buscarWiki(q) {
-    try {
-        const res = await web.get(`https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(q)}`);
-        if (res.data.extract) {
-            return `📘 **WIKIPEDIA:**\n\n${res.data.extract}\n\n🔗 *Fuente: Wikipedia*`;
-        }
-        return null;
-    } catch (e) { return null; }
-}
-
-async function obtenerClima(c) {
-    try {
-        const res = await web.get(`https://wttr.in/${encodeURIComponent(c)}?format=%C+%t+%w`);
-        return `🌤️ **CLIMA EN ${c.toUpperCase()}:** ${res.data}`;
-    } catch (e) { return "No pude obtener el clima."; }
-}
-
-async function responder(msg, ip) {
-    const t = msg.toLowerCase().trim();
-
-    // COMANDO CONTACTO ACTUALIZADO
-    if (t === "/contacto" || t === "contacto") {
-        return `📧 **INFORMACIÓN DE CONTACTO**\n──────────────────────────\nSi tienes alguna duda, propuesta o necesitas soporte técnico, puedes contactar directamente a mi creador:\n\n📩 **Gmail:** dkdidmateo@gmail.com\n\n_Koda IA está siempre a tu disposición._`;
-    }
-
-    if (modoFeedback[ip]) {
-        delete modoFeedback[ip];
-        return "✅ **Feedback guardado.** Gracias por ayudar a mejorar Koda IA.";
-    }
-    if (t === "/feedback") {
-        modoFeedback[ip] = true;
-        return "🛠️ **MODO FEEDBACK:** Describe el error o sugerencia.";
-    }
-
-    if (t === "hola") return `¡Hola${perfil.nombre ? " " + perfil.nombre : ""}! Soy Koda IA, ¿en qué puedo ayudarte hoy?`;
-    if (t.includes("como estas")) return "¡Excelente! Estoy operando en la nube y listo para trabajar.";
-    if (t.includes("gracias")) return "¡De nada! Es un placer serte útil.";
-
-    if (t.includes("chiste")) return "¿Qué hace una abeja en el gimnasio? ¡Zumba!";
-
-    if (t.includes("me llamo")) {
-        perfil.nombre = msg.split(/me llamo/i)[1]?.trim();
-        guardar();
-        return `Entendido, te llamaré **${perfil.nombre}**.`;
-    }
-
-    if (t.includes("clima") || t.includes("tiempo")) {
-        let ciudad = t.split("en")[1]?.trim() || perfil.ciudad || "Madrid";
-        return await obtenerClima(ciudad);
-    }
-
-    if (t.includes("busca") || t.includes("google") || t.includes("investiga")) {
-        const q = msg.replace(/busca|google|investiga/gi, "").trim();
-        const g = await buscarGoogle(q || msg);
-        if (g) return g;
-    }
-
-    const w = await buscarWiki(msg);
-    if (w) return w;
-
-    return `No encontré información directa sobre "${msg}". ¿Quieres que lo busque en Google? (Dime "Busca ${msg}")`;
-}
-
-app.post("/chat", async (req, res) => {
-    const { mensaje } = req.body;
-    const ip = req.ip;
-    historial.push({ rol: "usuario", texto: mensaje });
+document.addEventListener('DOMContentLoaded', () => {
+    const textarea = document.getElementById('prompt-textarea');
+    const submitBtn = document.getElementById('composer-submit-button');
+    const chatArea = document.getElementById('chat-area');
+    const welcomeSection = document.getElementById('welcome-section');
+    const suggestionsGrid = document.getElementById('suggestions-grid');
     
-    try {
-        const respuesta = await responder(mensaje, ip);
-        historial.push({ rol: "bot", texto: respuesta });
-        guardar();
-        res.json({ respuesta });
-    } catch (e) {
-        res.json({ respuesta: "Lo siento, tuve un error interno. Intenta de nuevo." });
-    }
-});
+    const newChatBtn = document.getElementById('new-chat-btn');
+    const jokeBtn = document.getElementById('joke-btn');
+    const clearHistoryBtn = document.getElementById('clear-history-btn');
 
-app.get("/historial", (req, res) => res.json(historial));
-app.delete("/historial", (req, res) => { historial = []; guardar(); res.json({ ok: true }); });
-app.get("/health", (req, res) => res.send("OK"));
+    let isSending = false;
 
-app.listen(PORT, () => {
-    console.log(`🚀 KODA IA v3.1.4 - ONLINE EN PUERTO ${PORT}`);
+    const bancoSugerencias = [
+        { h: "🔍 Google", p: "Busca sobre la inteligencia artificial", q: "Busca sobre la inteligencia artificial" },
+        { h: "🌦️ Clima", p: "¿Cómo está el tiempo hoy?", q: "Clima" },
+        { h: "📰 Noticias", p: "Investiga las noticias de hoy", q: "Noticias de hoy" },
+        { h: "🧠 Ciencia", p: "¿Qué es la física cuántica?", q: "Física cuántica" }
+    ];
+
+    const cargarSugerencias = () => {
+        if (!suggestionsGrid) return;
+        suggestionsGrid.innerHTML = '';
+        const barajado = bancoSugerencias.sort(() => 0.5 - Math.random()).slice(0, 4);
+        barajado.forEach(s => {
+            const card = document.createElement('div');
+            card.className = 'suggestion-card';
+            card.innerHTML = `<h3>${s.h}</h3><p>${s.p}</p>`;
+            card.onclick = () => sendMessage(s.q);
+            suggestionsGrid.appendChild(card);
+        });
+    };
+
+    const addMessage = (text, sender) => {
+        if (welcomeSection) welcomeSection.style.display = 'none';
+        const div = document.createElement('div');
+        div.className = `message ${sender}`;
+        div.innerHTML = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        chatArea.appendChild(div);
+        chatArea.scrollTop = chatArea.scrollHeight;
+    };
+
+    const sendMessage = async (customText = null) => {
+        const text = customText || textarea.value.trim();
+        if (!text || isSending) return;
+
+        isSending = true;
+        submitBtn.disabled = true;
+        addMessage(text, 'user');
+        if (!customText) textarea.value = '';
+
+        const thinking = document.createElement('div');
+        thinking.className = 'message assistant';
+        thinking.textContent = 'Koda IA está pensando...';
+        chatArea.appendChild(thinking);
+
+        try {
+            const res = await fetch('/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mensaje: text })
+            });
+            const data = await res.json();
+            thinking.innerHTML = data.respuesta.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        } catch (e) {
+            thinking.textContent = "Error de conexión.";
+        } finally {
+            isSending = false;
+            submitBtn.disabled = false;
+            chatArea.scrollTop = chatArea.scrollHeight;
+        }
+    };
+
+    textarea.addEventListener('input', () => {
+        submitBtn.disabled = textarea.value.trim() === '';
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+    });
+
+    textarea.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } });
+    submitBtn.addEventListener('click', () => sendMessage());
+    newChatBtn.addEventListener('click', () => window.location.reload());
+    jokeBtn.addEventListener('click', () => sendMessage("Cuéntame un chiste"));
+    clearHistoryBtn.addEventListener('click', async () => {
+        if (confirm('¿Borrar todo?')) {
+            await fetch('/historial', { method: 'DELETE' });
+            window.location.reload();
+        }
+    });
+
+    // Cargar historial y sugerencias
+    cargarSugerencias();
+    fetch('/historial').then(r => r.json()).then(h => {
+        if (h.length > 0) h.forEach(m => addMessage(m.texto, m.rol === 'usuario' ? 'user' : 'assistant'));
+    });
 });
